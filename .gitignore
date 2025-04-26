@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# artifacts
+*.wasm
+build/
