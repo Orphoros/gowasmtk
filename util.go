@@ -5,7 +5,7 @@ import (
 	"github.com/jcalabro/leb128"
 )
 
-func vec(elements []byte) WasmVector {
+func vec(elements []byte) wasmVector {
 	var result []byte
 
 	result = append(result, leb128EncodeU(uint64(len(elements)))...)
@@ -14,7 +14,7 @@ func vec(elements []byte) WasmVector {
 	return result
 }
 
-func vecNested(elements [][]byte) WasmVector {
+func vecNested(elements [][]byte) wasmVector {
 	var result []byte
 
 	result = append(result, leb128EncodeU(uint64(len(elements)))...)
@@ -26,11 +26,11 @@ func vecNested(elements [][]byte) WasmVector {
 	return result
 }
 
-func leb128EncodeU(n uint64) WasmVector {
+func leb128EncodeU(n uint64) wasmVector {
 	return leb128.EncodeU64(n)
 }
 
-func leb128EncodeI(n int64) WasmVector {
+func leb128EncodeI(n int64) wasmVector {
 	return leb128.EncodeS64(n)
 }
 
@@ -46,7 +46,7 @@ func magic() []byte {
 	return stringToBytes("\000asm")
 }
 
-func module(sections ...WasmSection) []byte {
+func module(sections ...wasmSection) []byte {
 	mod := []byte{}
 
 	mod = append(mod, magic()...)

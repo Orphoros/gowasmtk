@@ -25,7 +25,7 @@ type WasmFunctionModule struct {
 	sectionCode []byte
 	typeIndex   int
 	codeIndex   int
-	funcType    WasmSectionFunctionType
+	funcType    wasmSectionFunctionType
 }
 
 func (m *WasmFunctionModule) GetIndex() int {
@@ -58,13 +58,31 @@ func (b *WasmFunctionBuilder) AddLocal(n uint32, localType types.WasmType) *Wasm
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstruction(instruction instructions.WasmInstruction) *WasmFunctionBuilder {
-	b.instructions = append(b.instructions, instruction)
+func (b *WasmFunctionBuilder) AddInstrI32Const(n int32) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.ConstI32)
+	b.instructions = append(b.instructions, leb128EncodeI(int64(n))...)
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddI32(n int32) *WasmFunctionBuilder {
-	b.instructions = append(b.instructions, leb128EncodeI(int64(n))...)
+func (b *WasmFunctionBuilder) AddInstrLocalSet(idx uint64) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.SetLocal)
+	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLocalGet(idx uint64) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.GetLocal)
+	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrI32Add() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.AddI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrEnd() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.End)
 	return b
 }
 
@@ -99,23 +117,23 @@ func (b *WasmFunctionBuilder) buildFunctionCode() []byte {
 }
 
 type WasmModuleBuilder struct {
-	metaLanuages         []WasmMetadata
-	metaTools            []WasmMetadata
-	metaSdks             []WasmMetadata
-	sectionFunctionTypes []WasmSectionFunctionType
+	metaLanuages         []wasmMetadata
+	metaTools            []wasmMetadata
+	metaSdks             []wasmMetadata
+	sectionFunctionTypes []wasmSectionFunctionType
 	sectionFunction      []int // FIXME: Should be uint32
-	sectionExports       []WasmSectionExportedModule
+	sectionExports       []wasmSectionExportedModule
 	sectionCode          [][]byte
 	exportNames          []string
 }
 
 func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
 	return &WasmModuleBuilder{
-		metaLanuages:         []WasmMetadata{},
-		metaTools:            []WasmMetadata{},
-		metaSdks:             []WasmMetadata{},
+		metaLanuages:         []wasmMetadata{},
+		metaTools:            []wasmMetadata{},
+		metaSdks:             []wasmMetadata{},
 		sectionFunctionTypes: wasmSymbolTable.functionTypes,
-		sectionExports:       []WasmSectionExportedModule{},
+		sectionExports:       []wasmSectionExportedModule{},
 		sectionCode:          [][]byte{},
 		sectionFunction:      []int{},
 		exportNames:          []string{},
@@ -125,7 +143,7 @@ func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
 // Adds a source programming language to the module as metadata. This is an optional field. Examples of languages
 // include "C" or "Rust". Multiple languages can be added to the module.
 func (b *WasmModuleBuilder) AddMetaLanguage(name, version string) *WasmModuleBuilder {
-	b.metaLanuages = append(b.metaLanuages, WasmMetadata{
+	b.metaLanuages = append(b.metaLanuages, wasmMetadata{
 		Name:    name,
 		Version: version,
 	})
@@ -136,7 +154,7 @@ func (b *WasmModuleBuilder) AddMetaLanguage(name, version string) *WasmModuleBui
 // Adds an overall pipeline tool that produces and optimizes a given wasm module as metadata to the module.
 // This is an optional field. Examples of tools include "LLVM" or "rustc". Multiple tools can be added to the module.
 func (b *WasmModuleBuilder) AddMetaTool(name, version string) *WasmModuleBuilder {
-	b.metaTools = append(b.metaTools, WasmMetadata{
+	b.metaTools = append(b.metaTools, wasmMetadata{
 		Name:    name,
 		Version: version,
 	})
@@ -148,7 +166,7 @@ func (b *WasmModuleBuilder) AddMetaTool(name, version string) *WasmModuleBuilder
 // An SDK is a higher-level tool that can be installed to produce the wasm module.
 // Examples of SDKs include "Emscripten" or "Webpack". Multiple SDKs can be added to the module.
 func (b *WasmModuleBuilder) AddMetaSdk(name, version string) *WasmModuleBuilder {
-	b.metaSdks = append(b.metaSdks, WasmMetadata{
+	b.metaSdks = append(b.metaSdks, wasmMetadata{
 		Name:    name,
 		Version: version,
 	})
@@ -189,7 +207,7 @@ func (b *WasmModuleBuilder) Export(name string, exportType types.WasmExportType,
 		return b
 	}
 
-	b.sectionExports = append(b.sectionExports, export(name, WasmExportDescription{
+	b.sectionExports = append(b.sectionExports, export(name, wasmExportDescription{
 		Type:  exportType,
 		Index: item.GetIndex(),
 	}))
@@ -200,7 +218,7 @@ func (b *WasmModuleBuilder) Export(name string, exportType types.WasmExportType,
 
 // Build the WASM bytecode. Returns the WASM bytecode as a byte slice.
 func (b *WasmModuleBuilder) Build() []byte {
-	sections := []WasmSection{}
+	sections := []wasmSection{}
 
 	sections = append(sections, sectionType(b.sectionFunctionTypes...))
 	funcIndices := make([]uint64, len(b.sectionFunction))
@@ -213,7 +231,7 @@ func (b *WasmModuleBuilder) Build() []byte {
 		sections = append(sections, sectionExport(b.sectionExports...))
 	}
 
-	sections = append(sections, SectionCode(b.sectionCode...))
+	sections = append(sections, sectionCode(b.sectionCode...))
 
 	if len(b.metaLanuages) > 0 || len(b.metaTools) > 0 || len(b.metaSdks) > 0 {
 		sections = append(sections, sectionProducers(b.metaLanuages, b.metaTools, b.metaSdks))

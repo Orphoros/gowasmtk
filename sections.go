@@ -4,41 +4,41 @@ import (
 	"github.com/Orphoros/gowasmtk/types"
 )
 
-type SectionId = byte
+type sectionId = byte
 
-type WasmVector []byte
-type WasmSection []byte
-type WasmSecionFunction = WasmSection
-type WasmSectionType = WasmSection
-type WasmSectionExport = WasmSection
+type wasmVector []byte
+type wasmSection []byte
+type WasmSecionFunction = wasmSection
+type WasmSectionType = wasmSection
+type WasmSectionExport = wasmSection
 
-type WasmMetadata struct {
+type wasmMetadata struct {
 	Name    string
 	Version string
 }
 
-type WasmSectionExportedModule = []byte
+type wasmSectionExportedModule = []byte
 
-type WasmSectionFunctionType = []byte
+type wasmSectionFunctionType = []byte
 
-type WasmExportDescription = struct {
+type wasmExportDescription = struct {
 	Type  types.WasmExportType
 	Index int
 }
 
 const (
-	SectionIdCustom   SectionId = 0x00
-	SectionIdType     SectionId = 0x01
-	SectionIdFunction SectionId = 0x03
-	SectionIdCode     SectionId = 0x0A
-	SectionIdExport   SectionId = 0x07
+	sectionIdCustom   sectionId = 0x00
+	sectionIdType     sectionId = 0x01
+	sectionIdFunction sectionId = 0x03
+	sectionIdCode     sectionId = 0x0A
+	sectionIdExport   sectionId = 0x07
 )
 
-func same(s string) WasmVector {
+func same(s string) wasmVector {
 	return vec([]byte(s))
 }
 
-func export(name string, exportdescs WasmExportDescription) WasmSectionExportedModule {
+func export(name string, exportdescs wasmExportDescription) wasmSectionExportedModule {
 	var descs []byte
 
 	desc := append([]byte{exportdescs.Type}, leb128EncodeU(uint64(exportdescs.Index))...)
@@ -52,10 +52,10 @@ func export(name string, exportdescs WasmExportDescription) WasmSectionExportedM
 	return data
 }
 
-func sectionExport(exports ...WasmSectionExportedModule) WasmSectionExport {
+func sectionExport(exports ...wasmSectionExportedModule) WasmSectionExport {
 	vector := vecNested(exports)
 
-	return section(SectionIdExport, vector)
+	return section(sectionIdExport, vector)
 }
 
 func code(f []byte) []byte {
@@ -72,14 +72,14 @@ func function(locals [][]byte, body []byte) []byte {
 	)
 }
 
-func SectionCode(codes ...[]byte) []byte {
-	return section(SectionIdCode, vecNested(codes))
+func sectionCode(codes ...[]byte) []byte {
+	return section(sectionIdCode, vecNested(codes))
 }
 
-func funcType(paramTypes []types.WasmType, resultTypes []types.WasmType) WasmSectionFunctionType {
+func funcType(paramTypes []types.WasmType, resultTypes []types.WasmType) wasmSectionFunctionType {
 	// FIXME: Result cannnot be an array.
 	return append(
-		WasmSectionFunctionType{types.FunctionType},
+		wasmSectionFunctionType{types.FunctionType},
 		append(
 			vec(paramTypes),
 			vec(resultTypes)...,
@@ -87,12 +87,12 @@ func funcType(paramTypes []types.WasmType, resultTypes []types.WasmType) WasmSec
 	)
 }
 
-func sectionType(functypes ...WasmSectionFunctionType) WasmSectionType {
-	sectionVec := WasmVector{}
+func sectionType(functypes ...wasmSectionFunctionType) WasmSectionType {
+	sectionVec := wasmVector{}
 
 	sectionVec = append(sectionVec, vecNested(functypes)...)
 
-	return section(SectionIdType, sectionVec)
+	return section(sectionIdType, sectionVec)
 
 }
 
@@ -102,11 +102,11 @@ func sectionFunc(typeidxs ...uint64) WasmSecionFunction {
 		typeidxsBytes = append(typeidxsBytes, leb128EncodeU(idx)...)
 	}
 
-	return section(SectionIdFunction, vec(typeidxsBytes))
+	return section(sectionIdFunction, vec(typeidxsBytes))
 }
 
-func section(id SectionId, contents WasmVector) WasmSection {
-	wasmSection := WasmSection{}
+func section(id sectionId, contents wasmVector) wasmSection {
+	wasmSection := wasmSection{}
 
 	wasmSection = append(wasmSection, id)
 	wasmSection = append(wasmSection, leb128EncodeU(uint64(len(contents)))...)
@@ -119,10 +119,10 @@ func encodeString(s string) []byte {
 	return append(leb128EncodeU(uint64(len(s))), []byte(s)...)
 }
 
-func sectionCustom(name string, payload []byte) WasmSection {
+func sectionCustom(name string, payload []byte) wasmSection {
 	// Build custom section data.
 	var section []byte
-	section = append(section, SectionIdCustom)
+	section = append(section, sectionIdCustom)
 
 	// Custom section name is encoded as a string.
 	customName := encodeString(name)
@@ -136,7 +136,7 @@ func sectionCustom(name string, payload []byte) WasmSection {
 	return section
 }
 
-func sectionProducers(languages []WasmMetadata, tools []WasmMetadata, sdk []WasmMetadata) WasmSection {
+func sectionProducers(languages []wasmMetadata, tools []wasmMetadata, sdk []wasmMetadata) wasmSection {
 	var payload []byte
 	var length uint64 = 0
 

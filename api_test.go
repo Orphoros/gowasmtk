@@ -20,10 +20,10 @@ func TestModule(t *testing.T) {
 
 		mainFuncCode := code(mainFunc)
 
-		codeSection := SectionCode(
+		codeSection := sectionCode(
 			mainFuncCode,
 		)
-		exportedMainFunc := export("main", WasmExportDescription{
+		exportedMainFunc := export("main", wasmExportDescription{
 			Type:  types.ExportFunctionType,
 			Index: 0,
 		})
@@ -59,32 +59,24 @@ func TestModule(t *testing.T) {
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
-			AddInstruction(instructions.ConstI32).
-			AddI32(42).
-			AddInstruction(instructions.SetLocal).
-			AddI32(1).
-			AddInstruction(instructions.GetLocal).
-			AddI32(0).
-			AddInstruction(instructions.GetLocal).
-			AddI32(1).
-			AddInstruction(instructions.AddI32).
-			AddInstruction(instructions.End).
+			AddInstrI32Const(42).
+			AddInstrLocalSet(1).
+			AddInstrLocalGet(0).
+			AddInstrLocalGet(1).
+			AddInstrI32Add().
+			AddInstrEnd().
 			Build()
 
 		f2 := NewWasmFunctionBuilder(wasmSymbolTable).
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
-			AddInstruction(instructions.ConstI32).
-			AddI32(10).
-			AddInstruction(instructions.SetLocal).
-			AddI32(1).
-			AddInstruction(instructions.GetLocal).
-			AddI32(0).
-			AddInstruction(instructions.GetLocal).
-			AddI32(1).
-			AddInstruction(instructions.AddI32).
-			AddInstruction(instructions.End).
+			AddInstrI32Const(10).
+			AddInstrLocalSet(1).
+			AddInstrLocalGet(0).
+			AddInstrLocalGet(1).
+			AddInstrI32Add().
+			AddInstrEnd().
 			Build()
 
 		mod := NewWasmModuleBuilder(wasmSymbolTable).

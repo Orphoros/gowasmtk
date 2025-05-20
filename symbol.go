@@ -1,13 +1,13 @@
 package gowasmtk
 
 type wasmSymbolTable struct {
-	functionTypes []WasmSectionFunctionType
+	functionTypes []wasmSectionFunctionType
 	functions     []WasmFunctionModule
 }
 
 func NewSymbolTable() *wasmSymbolTable {
 	return &wasmSymbolTable{
-		functionTypes: []WasmSectionFunctionType{},
+		functionTypes: []wasmSectionFunctionType{},
 		functions:     []WasmFunctionModule{},
 	}
 }
