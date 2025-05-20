@@ -56,7 +56,6 @@ func TestModule(t *testing.T) {
 		wasmSymbolTable := NewSymbolTable()
 
 		f1 := NewWasmFunctionBuilder(wasmSymbolTable).
-			SetExported("f1").
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
@@ -73,7 +72,6 @@ func TestModule(t *testing.T) {
 			Build()
 
 		f2 := NewWasmFunctionBuilder(wasmSymbolTable).
-			SetExported("f2").
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
@@ -92,6 +90,8 @@ func TestModule(t *testing.T) {
 		mod := NewWasmModuleBuilder(wasmSymbolTable).
 			AddFunction(&f1).
 			AddFunction(&f2).
+			Export("f1", &f1).
+			Export("f2", &f2).
 			AddMetaSdk("Orp", "0.0.1").
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")

@@ -8,10 +8,13 @@ import (
 	"github.com/Orphoros/gowasmtk/types"
 )
 
+type WasmExportable interface {
+	GetIndex() int
+}
+
 type WasmFunctionBuilder struct {
 	paramTypes   []types.WasmType
 	resultTypes  []types.WasmType
-	name         *string
 	code         []byte
 	locals       [][]byte
 	instructions []byte
@@ -21,19 +24,18 @@ type WasmFunctionBuilder struct {
 type WasmFunctionModule struct {
 	sectionCode []byte
 	typeIndex   int
+	codeIndex   int
 	funcType    WasmSectionFunctionType
-	exportName  *string
 }
 
-func (b *WasmFunctionModule) GetIndex() int {
-	return b.typeIndex
+func (m *WasmFunctionModule) GetIndex() int {
+	return m.codeIndex
 }
 
 func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
 	return &WasmFunctionBuilder{
 		paramTypes:   []types.WasmType{},
 		resultTypes:  []types.WasmType{},
-		name:         nil,
 		code:         []byte{},
 		locals:       [][]byte{},
 		instructions: []byte{},
@@ -48,11 +50,6 @@ func (b *WasmFunctionBuilder) AddParam(paramType types.WasmType) *WasmFunctionBu
 
 func (b *WasmFunctionBuilder) AddReturn(resultType types.WasmType) *WasmFunctionBuilder {
 	b.resultTypes = append(b.resultTypes, resultType)
-	return b
-}
-
-func (b *WasmFunctionBuilder) SetExported(name string) *WasmFunctionBuilder {
-	b.name = &name
 	return b
 }
 
@@ -85,12 +82,16 @@ func (b *WasmFunctionBuilder) Build() WasmFunctionModule {
 		b.symbolTable.functionTypes = append(b.symbolTable.functionTypes, funcType)
 	}
 
-	return WasmFunctionModule{
+	m := WasmFunctionModule{
 		sectionCode: b.buildFunctionCode(),
 		typeIndex:   typeIndex,
 		funcType:    funcType,
-		exportName:  b.name,
 	}
+
+	b.symbolTable.functions = append(b.symbolTable.functions, m)
+	m.codeIndex = len(b.symbolTable.functions) - 1
+
+	return m
 }
 
 func (b *WasmFunctionBuilder) buildFunctionCode() []byte {
@@ -105,6 +106,7 @@ type WasmModuleBuilder struct {
 	sectionFunction      []int // FIXME: Should be uint32
 	sectionExports       []WasmSectionExportedModule
 	sectionCode          [][]byte
+	exportNames          []string
 }
 
 func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
@@ -116,6 +118,7 @@ func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
 		sectionExports:       []WasmSectionExportedModule{},
 		sectionCode:          [][]byte{},
 		sectionFunction:      []int{},
+		exportNames:          []string{},
 	}
 }
 
@@ -158,13 +161,6 @@ func (b *WasmModuleBuilder) AddFunction(function *WasmFunctionModule) *WasmModul
 	b.sectionFunction = append(b.sectionFunction, function.typeIndex)
 	b.sectionCode = append(b.sectionCode, function.sectionCode)
 
-	if function.exportName != nil {
-		b.sectionExports = append(b.sectionExports, export(*function.exportName, WasmExportDescription{
-			Type:  types.ExportFunctionType,
-			Index: len(b.sectionFunction) - 1,
-		}))
-	}
-
 	return b
 }
 
@@ -175,6 +171,30 @@ func (b *WasmModuleBuilder) BuildWasmFile(fileName string) error {
 	}
 
 	return os.WriteFile(fileName, b.Build(), 0644)
+}
+
+// Export an item (function) from the module. The item must implement the WasmExportable interface.
+// The name must be unique. If the name already exists, it will not be added again.
+func (b *WasmModuleBuilder) Export(name string, item WasmExportable) *WasmModuleBuilder {
+	found := false
+
+	for _, n := range b.exportNames {
+		if n == name {
+			found = true
+			break
+		}
+	}
+	if found {
+		return b
+	}
+
+	b.sectionExports = append(b.sectionExports, export(name, WasmExportDescription{
+		Type:  types.ExportFunctionType,
+		Index: item.GetIndex(),
+	}))
+	b.exportNames = append(b.exportNames, name)
+
+	return b
 }
 
 // Build the WASM bytecode. Returns the WASM bytecode as a byte slice.
