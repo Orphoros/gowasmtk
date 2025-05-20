@@ -90,8 +90,8 @@ func TestModule(t *testing.T) {
 		mod := NewWasmModuleBuilder(wasmSymbolTable).
 			AddFunction(&f1).
 			AddFunction(&f2).
-			Export("f1", &f1).
-			Export("f2", &f2).
+			Export("f1", types.ExportFunctionType, &f1).
+			Export("f2", types.ExportFunctionType, &f2).
 			AddMetaSdk("Orp", "0.0.1").
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")

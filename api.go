@@ -174,8 +174,9 @@ func (b *WasmModuleBuilder) BuildWasmFile(fileName string) error {
 }
 
 // Export an item (function) from the module. The item must implement the WasmExportable interface.
-// The name must be unique. If the name already exists, it will not be added again.
-func (b *WasmModuleBuilder) Export(name string, item WasmExportable) *WasmModuleBuilder {
+// The name must be unique. If the name already exists, it will not be added again. The type of the item
+// must be one of the WasmExportType constants. The item will be exported with the given name and type.
+func (b *WasmModuleBuilder) Export(name string, exportType types.WasmExportType, item WasmExportable) *WasmModuleBuilder {
 	found := false
 
 	for _, n := range b.exportNames {
@@ -189,7 +190,7 @@ func (b *WasmModuleBuilder) Export(name string, item WasmExportable) *WasmModule
 	}
 
 	b.sectionExports = append(b.sectionExports, export(name, WasmExportDescription{
-		Type:  types.ExportFunctionType,
+		Type:  exportType,
 		Index: item.GetIndex(),
 	}))
 	b.exportNames = append(b.exportNames, name)
