@@ -15,9 +15,21 @@ type WasmFunctionBuilder struct {
 	code         []byte
 	locals       [][]byte
 	instructions []byte
+	symbolTable  *wasmSymbolTable
 }
 
-func NewWasmFunctionBuilder() *WasmFunctionBuilder {
+type WasmFunctionModule struct {
+	sectionCode []byte
+	typeIndex   int
+	funcType    WasmSectionFunctionType
+	exportName  *string
+}
+
+func (b *WasmFunctionModule) GetIndex() int {
+	return b.typeIndex
+}
+
+func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
 	return &WasmFunctionBuilder{
 		paramTypes:   []types.WasmType{},
 		resultTypes:  []types.WasmType{},
@@ -25,6 +37,7 @@ func NewWasmFunctionBuilder() *WasmFunctionBuilder {
 		code:         []byte{},
 		locals:       [][]byte{},
 		instructions: []byte{},
+		symbolTable:  symbolTable,
 	}
 }
 
@@ -58,6 +71,28 @@ func (b *WasmFunctionBuilder) AddI32(n int32) *WasmFunctionBuilder {
 	return b
 }
 
+func (b *WasmFunctionBuilder) Build() WasmFunctionModule {
+	funcType := funcType(b.paramTypes, b.resultTypes)
+	typeIndex := -1
+	for i, f := range b.symbolTable.functionTypes {
+		if bytes.Equal(f, funcType) {
+			typeIndex = i
+			break
+		}
+	}
+	if typeIndex == -1 {
+		typeIndex = len(b.symbolTable.functionTypes)
+		b.symbolTable.functionTypes = append(b.symbolTable.functionTypes, funcType)
+	}
+
+	return WasmFunctionModule{
+		sectionCode: b.buildFunctionCode(),
+		typeIndex:   typeIndex,
+		funcType:    funcType,
+		exportName:  b.name,
+	}
+}
+
 func (b *WasmFunctionBuilder) buildFunctionCode() []byte {
 	return code(function(b.locals, b.instructions))
 }
@@ -72,12 +107,12 @@ type WasmModuleBuilder struct {
 	sectionCode          [][]byte
 }
 
-func NewWasmModuleBuilder() *WasmModuleBuilder {
+func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
 	return &WasmModuleBuilder{
 		metaLanuages:         []WasmMetadata{},
 		metaTools:            []WasmMetadata{},
 		metaSdks:             []WasmMetadata{},
-		sectionFunctionTypes: []WasmSectionFunctionType{},
+		sectionFunctionTypes: wasmSymbolTable.functionTypes,
 		sectionExports:       []WasmSectionExportedModule{},
 		sectionCode:          [][]byte{},
 		sectionFunction:      []int{},
@@ -119,25 +154,12 @@ func (b *WasmModuleBuilder) AddMetaSdk(name, version string) *WasmModuleBuilder 
 }
 
 // Register a function in the module. The function must be built using the WasmFunctionBuilder.
-func (b *WasmModuleBuilder) AddFunction(function *WasmFunctionBuilder) *WasmModuleBuilder {
-	funcType := funcType(function.paramTypes, function.resultTypes)
-	typeIndex := -1
-	for i, f := range b.sectionFunctionTypes {
-		if bytes.Equal(f, funcType) {
-			typeIndex = i
-			break
-		}
-	}
-	if typeIndex == -1 {
-		typeIndex = len(b.sectionFunctionTypes)
-		b.sectionFunctionTypes = append(b.sectionFunctionTypes, funcType)
-	}
+func (b *WasmModuleBuilder) AddFunction(function *WasmFunctionModule) *WasmModuleBuilder {
+	b.sectionFunction = append(b.sectionFunction, function.typeIndex)
+	b.sectionCode = append(b.sectionCode, function.sectionCode)
 
-	b.sectionFunction = append(b.sectionFunction, typeIndex)
-	b.sectionCode = append(b.sectionCode, function.buildFunctionCode())
-
-	if function.name != nil {
-		b.sectionExports = append(b.sectionExports, export(*function.name, WasmExportDescription{
+	if function.exportName != nil {
+		b.sectionExports = append(b.sectionExports, export(*function.exportName, WasmExportDescription{
 			Type:  types.ExportFunctionType,
 			Index: len(b.sectionFunction) - 1,
 		}))

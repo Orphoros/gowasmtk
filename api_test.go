@@ -53,7 +53,9 @@ func TestModule(t *testing.T) {
 	})
 
 	t.Run("should build a wasm module with arithmetic", func(t *testing.T) {
-		f1 := NewWasmFunctionBuilder().
+		wasmSymbolTable := NewSymbolTable()
+
+		f1 := NewWasmFunctionBuilder(wasmSymbolTable).
 			SetExported("f1").
 			AddParam(types.I32).
 			AddReturn(types.I32).
@@ -67,9 +69,10 @@ func TestModule(t *testing.T) {
 			AddInstruction(instructions.GetLocal).
 			AddI32(1).
 			AddInstruction(instructions.AddI32).
-			AddInstruction(instructions.End)
+			AddInstruction(instructions.End).
+			Build()
 
-		f2 := NewWasmFunctionBuilder().
+		f2 := NewWasmFunctionBuilder(wasmSymbolTable).
 			SetExported("f2").
 			AddParam(types.I32).
 			AddReturn(types.I32).
@@ -83,11 +86,12 @@ func TestModule(t *testing.T) {
 			AddInstruction(instructions.GetLocal).
 			AddI32(1).
 			AddInstruction(instructions.AddI32).
-			AddInstruction(instructions.End)
+			AddInstruction(instructions.End).
+			Build()
 
-		mod := NewWasmModuleBuilder().
-			AddFunction(f1).
-			AddFunction(f2).
+		mod := NewWasmModuleBuilder(wasmSymbolTable).
+			AddFunction(&f1).
+			AddFunction(&f2).
 			AddMetaSdk("Orp", "0.0.1").
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")
