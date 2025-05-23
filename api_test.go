@@ -52,22 +52,20 @@ func TestModule(t *testing.T) {
 		}
 	})
 
-	t.Run("should build a wasm module with arithmetic", func(t *testing.T) {
+	t.Run("should build a wasm module with function call arithmetic", func(t *testing.T) {
 		wasmSymbolTable := NewSymbolTable()
 
-		f1 := NewWasmFunctionBuilder(wasmSymbolTable).
+		adder := NewWasmFunctionBuilder(wasmSymbolTable).
+			AddParam(types.I32).
 			AddParam(types.I32).
 			AddReturn(types.I32).
-			AddLocal(1, types.I32).
-			AddInstrI32Const(42).
-			AddInstrLocalSet(1).
 			AddInstrLocalGet(0).
 			AddInstrLocalGet(1).
 			AddInstrI32Add().
 			AddInstrEnd().
 			Build()
 
-		f2 := NewWasmFunctionBuilder(wasmSymbolTable).
+		main := NewWasmFunctionBuilder(wasmSymbolTable).
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
@@ -75,15 +73,14 @@ func TestModule(t *testing.T) {
 			AddInstrLocalSet(1).
 			AddInstrLocalGet(0).
 			AddInstrLocalGet(1).
-			AddInstrI32Add().
+			AddInstrCall(&adder).
 			AddInstrEnd().
 			Build()
 
 		mod := NewWasmModuleBuilder(wasmSymbolTable).
-			AddFunction(&f1).
-			AddFunction(&f2).
-			Export("f1", types.ExportFunctionType, &f1).
-			Export("f2", types.ExportFunctionType, &f2).
+			AddFunction(&adder).
+			AddFunction(&main).
+			Export("main", types.ExportFunctionType, &main).
 			AddMetaSdk("Orp", "0.0.1").
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")

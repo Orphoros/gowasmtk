@@ -15,4 +15,5 @@ const (
 	GetLocal WasmInstruction = 0x20
 	SetLocal WasmInstruction = 0x21
 	TeeLocal WasmInstruction = 0x22
+	CallFunc WasmInstruction = 0x10
 )

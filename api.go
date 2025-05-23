@@ -64,6 +64,12 @@ func (b *WasmFunctionBuilder) AddInstrI32Const(n int32) *WasmFunctionBuilder {
 	return b
 }
 
+func (boolean *WasmFunctionBuilder) AddInstrI64Const(n int64) *WasmFunctionBuilder {
+	boolean.instructions = append(boolean.instructions, instructions.ConstI64)
+	boolean.instructions = append(boolean.instructions, leb128EncodeI(n)...)
+	return boolean
+}
+
 func (b *WasmFunctionBuilder) AddInstrLocalSet(idx uint64) *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.SetLocal)
 	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
@@ -76,8 +82,35 @@ func (b *WasmFunctionBuilder) AddInstrLocalGet(idx uint64) *WasmFunctionBuilder 
 	return b
 }
 
+func (b *WasmFunctionBuilder) AddInstrLocalTee(idx uint64) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.TeeLocal)
+	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
+	return b
+}
+
 func (b *WasmFunctionBuilder) AddInstrI32Add() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.AddI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrI32Sub() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.SubI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrI32Mul() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.MulI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrI32Div() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.DivI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrCall(f *WasmFunctionModule) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.CallFunc)
+	b.instructions = append(b.instructions, leb128EncodeU(uint64(f.GetIndex()))...)
 	return b
 }
 
