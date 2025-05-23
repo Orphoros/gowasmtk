@@ -58,25 +58,25 @@ func (b *WasmFunctionBuilder) AddLocal(n uint32, localType types.WasmType) *Wasm
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrI32Const(n int32) *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrConstI32(n int32) *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.ConstI32)
 	b.instructions = append(b.instructions, leb128EncodeI(int64(n))...)
 	return b
 }
 
-func (boolean *WasmFunctionBuilder) AddInstrI64Const(n int64) *WasmFunctionBuilder {
+func (boolean *WasmFunctionBuilder) AddInstrConstI64(n int64) *WasmFunctionBuilder {
 	boolean.instructions = append(boolean.instructions, instructions.ConstI64)
 	boolean.instructions = append(boolean.instructions, leb128EncodeI(n)...)
 	return boolean
 }
 
-func (b *WasmFunctionBuilder) AddInstrLocalSet(idx uint64) *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrSetLocal(idx uint64) *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.SetLocal)
 	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrLocalGet(idx uint64) *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrGetLocal(idx uint64) *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.GetLocal)
 	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
 	return b
@@ -88,23 +88,99 @@ func (b *WasmFunctionBuilder) AddInstrLocalTee(idx uint64) *WasmFunctionBuilder 
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrI32Add() *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrAddI32() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.AddI32)
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrI32Sub() *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrSubI32() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.SubI32)
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrI32Mul() *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrMulI32() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.MulI32)
 	return b
 }
 
-func (b *WasmFunctionBuilder) AddInstrI32Div() *WasmFunctionBuilder {
+func (b *WasmFunctionBuilder) AddInstrDivI32() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.DivI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrIf(returnType types.PrimitiveType) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.If)
+	b.instructions = append(b.instructions, returnType)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrElse() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.Else)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrEqI32() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.EqualI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrNotEqI32() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.NotEqualI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLessThanI32S() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.LessThanSignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLessThanI32U() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.LessThanUnsignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrGreaterThanI32S() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.GreaterThanSignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrGreaterThanI32U() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.GreaterThanUnsignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLessThanEqI32S() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.LessThanEqualSignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLessThanEqI32U() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.LessThanEqualUnsignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrGreaterThanEqI32S() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.GreaterThanEqualSignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrGreaterThanEqI32U() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.GreaterThanEqualUnsignedI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrEqzI32() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.EqzI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrAndI32() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.AndI32)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrOrI32() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.OrI32)
 	return b
 }
 

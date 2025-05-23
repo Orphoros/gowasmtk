@@ -59,9 +59,9 @@ func TestModule(t *testing.T) {
 			AddParam(types.I32).
 			AddParam(types.I32).
 			AddReturn(types.I32).
-			AddInstrLocalGet(0).
-			AddInstrLocalGet(1).
-			AddInstrI32Add().
+			AddInstrGetLocal(0).
+			AddInstrGetLocal(1).
+			AddInstrAddI32().
 			AddInstrEnd().
 			Build()
 
@@ -69,16 +69,46 @@ func TestModule(t *testing.T) {
 			AddParam(types.I32).
 			AddReturn(types.I32).
 			AddLocal(1, types.I32).
-			AddInstrI32Const(10).
-			AddInstrLocalSet(1).
-			AddInstrLocalGet(0).
-			AddInstrLocalGet(1).
+			AddInstrConstI32(10).
+			AddInstrSetLocal(1).
+			AddInstrGetLocal(0).
+			AddInstrGetLocal(1).
 			AddInstrCall(&adder).
 			AddInstrEnd().
 			Build()
 
 		mod := NewWasmModuleBuilder(wasmSymbolTable).
 			AddFunction(&adder).
+			AddFunction(&main).
+			Export("main", types.ExportFunctionType, &main).
+			AddMetaSdk("Orp", "0.0.1").
+			AddMetaLanguage("Shark", "0.0.1").
+			AddMetaTool("GoWasmTK", "0.0.1")
+
+		err := mod.BuildWasmFile("mod.wasm")
+		if err != nil {
+			log.Fatal("error: %w\n", err)
+			return
+		}
+	})
+
+	t.Run("should build a wasm module with conditional", func(t *testing.T) {
+		wasmSymbolTable := NewSymbolTable()
+		main := NewWasmFunctionBuilder(wasmSymbolTable).
+			// get a i32 from parameter, if it is 0, return 0, else return 1
+			AddParam(types.I32).
+			AddReturn(types.I32).
+			AddInstrGetLocal(0).
+			AddInstrEqzI32().
+			AddInstrIf(types.I32).
+			AddInstrConstI32(0).
+			AddInstrElse().
+			AddInstrConstI32(1).
+			AddInstrEnd().
+			AddInstrEnd().
+			Build()
+
+		mod := NewWasmModuleBuilder(wasmSymbolTable).
 			AddFunction(&main).
 			Export("main", types.ExportFunctionType, &main).
 			AddMetaSdk("Orp", "0.0.1").
