@@ -19,6 +19,7 @@ type WasmFunctionBuilder struct {
 	locals       [][]byte
 	instructions []byte
 	symbolTable  *wasmSymbolTable
+	codeIndex    int
 }
 
 type WasmFunctionModule struct {
@@ -33,6 +34,9 @@ func (m *WasmFunctionModule) GetIndex() int {
 }
 
 func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
+	// reserve a slot for the function in the symbol table
+	symbolTable.functions = append(symbolTable.functions, WasmFunctionModule{})
+
 	return &WasmFunctionBuilder{
 		paramTypes:   []types.WasmType{},
 		resultTypes:  []types.WasmType{},
@@ -40,6 +44,7 @@ func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
 		locals:       [][]byte{},
 		instructions: []byte{},
 		symbolTable:  symbolTable,
+		codeIndex:    len(symbolTable.functions) - 1,
 	}
 }
 
@@ -190,6 +195,40 @@ func (b *WasmFunctionBuilder) AddInstrCall(f *WasmFunctionModule) *WasmFunctionB
 	return b
 }
 
+func (b *WasmFunctionBuilder) AddInstrCallSelf() *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.CallFunc)
+
+	index := len(b.symbolTable.functions)
+
+	b.instructions = append(b.instructions, leb128EncodeU(uint64(index))...)
+
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrLoop(returnType types.PrimitiveType) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.Loop)
+	b.instructions = append(b.instructions, returnType)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrBr(idx uint64) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.Br)
+	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrBrIf(idx uint64) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.BrIf)
+	b.instructions = append(b.instructions, leb128EncodeU(idx)...)
+	return b
+}
+
+func (b *WasmFunctionBuilder) AddInstrBlock(returnType types.PrimitiveType) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.Block)
+	b.instructions = append(b.instructions, returnType)
+	return b
+}
+
 func (b *WasmFunctionBuilder) AddInstrEnd() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.End)
 	return b
@@ -215,7 +254,9 @@ func (b *WasmFunctionBuilder) Build() WasmFunctionModule {
 		funcType:    funcType,
 	}
 
-	b.symbolTable.functions = append(b.symbolTable.functions, m)
+	// Update the function in the symbol table
+	b.symbolTable.functions[m.codeIndex] = m
+	// Update the code index in the function
 	m.codeIndex = len(b.symbolTable.functions) - 1
 
 	return m

@@ -31,4 +31,8 @@ const (
 	EqzI32                      WasmInstruction = 0x45 // (a == 0)
 	AndI32                      WasmInstruction = 0x71 // (a & b)
 	OrI32                       WasmInstruction = 0x72 // (a | b)
+	Block                       WasmInstruction = 0x02
+	Loop                        WasmInstruction = 0x03
+	Br                          WasmInstruction = 0x0C
+	BrIf                        WasmInstruction = 0x0D
 )

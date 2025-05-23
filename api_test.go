@@ -121,4 +121,55 @@ func TestModule(t *testing.T) {
 			return
 		}
 	})
+
+	t.Run("should build a wasm module with loop", func(t *testing.T) {
+		wasmSymbolTable := NewSymbolTable()
+		// get a i32 from parameter, calculate fibonacci
+		fib := NewWasmFunctionBuilder(wasmSymbolTable).
+			AddParam(types.I32).
+			AddReturn(types.I32).
+			// if (n < 2)
+			AddInstrGetLocal(0).
+			AddInstrConstI32(2).
+			AddInstrLessThanI32S().
+			AddInstrIf(types.I32).
+			// then: return n
+			AddInstrGetLocal(0).
+			AddInstrElse().
+			// else: return fib(n-2) + fib(n-1)
+			AddInstrGetLocal(0).
+			AddInstrConstI32(2).
+			AddInstrSubI32().
+			AddInstrCallSelf().
+			AddInstrGetLocal(0).
+			AddInstrConstI32(1).
+			AddInstrSubI32().
+			AddInstrCallSelf().
+			AddInstrAddI32().
+			AddInstrEnd(). // close if block
+			AddInstrEnd(). // close function body
+			Build()
+		main := NewWasmFunctionBuilder(wasmSymbolTable).
+			// get a i32 from parameter, calculate fibonacci
+			AddParam(types.I32).
+			AddReturn(types.I32).
+			AddInstrGetLocal(0).
+			AddInstrCall(&fib).
+			AddInstrEnd().
+			Build()
+
+		mod := NewWasmModuleBuilder(wasmSymbolTable).
+			AddFunction(&main).
+			AddFunction(&fib).
+			Export("main", types.ExportFunctionType, &main).
+			AddMetaSdk("Orp", "0.0.1").
+			AddMetaLanguage("Shark", "0.0.1").
+			AddMetaTool("GoWasmTK", "0.0.1")
+
+		err := mod.BuildWasmFile("mod.wasm")
+		if err != nil {
+			log.Fatal("error: %w\n", err)
+			return
+		}
+	})
 }
