@@ -11,6 +11,7 @@ type wasmSection []byte
 type WasmSecionFunction = wasmSection
 type WasmSectionType = wasmSection
 type WasmSectionExport = wasmSection
+type WasmSectionImport = wasmSection
 
 type wasmMetadata struct {
 	Name    string
@@ -18,34 +19,57 @@ type wasmMetadata struct {
 }
 
 type wasmSectionExportedModule = []byte
-
 type wasmSectionFunctionType = []byte
+type wasmSectionImportedModule = []byte
 
 type wasmExportDescription = struct {
 	Type  types.WasmExportType
 	Index int
 }
 
+var importdesc = struct {
+	function func(index uint32) wasmSectionImportedModule
+}{
+	func(index uint32) wasmSectionImportedModule {
+		ve := wasmSectionImportedModule{types.ImportFunctionType}
+		ve = append(ve, leb128EncodeU(uint64(index))...)
+		return ve
+	},
+}
+
 const (
 	sectionIdCustom   sectionId = 0x00
 	sectionIdType     sectionId = 0x01
+	sectionIdImport   sectionId = 0x02
 	sectionIdFunction sectionId = 0x03
 	sectionIdCode     sectionId = 0x0A
 	sectionIdExport   sectionId = 0x07
 )
 
-func same(s string) wasmVector {
+func name(s string) wasmVector {
 	return vec([]byte(s))
 }
 
-func export(name string, exportdescs wasmExportDescription) wasmSectionExportedModule {
+func imports(modName, funcName string, importdesc wasmSectionImportedModule) wasmSectionImportedModule {
+	return append(name(modName), append(name(funcName), importdesc...)...)
+}
+
+func sectionImports(imports ...wasmSectionImportedModule) WasmSectionImport {
+	sectionVec := wasmVector{}
+
+	sectionVec = append(sectionVec, vecNested(imports)...)
+
+	return section(sectionIdImport, sectionVec)
+}
+
+func export(exportName string, exportdescs wasmExportDescription, numImportDeclarations int) wasmSectionExportedModule {
 	var descs []byte
 
-	desc := append([]byte{exportdescs.Type}, leb128EncodeU(uint64(exportdescs.Index))...)
+	desc := append([]byte{exportdescs.Type}, leb128EncodeU(uint64(exportdescs.Index+numImportDeclarations))...)
 	descs = append(descs, desc...)
 
 	data := append(
-		same(name),
+		name(exportName),
 		descs...,
 	)
 

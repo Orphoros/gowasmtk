@@ -29,13 +29,24 @@ type WasmFunctionModule struct {
 	funcType    wasmSectionFunctionType
 }
 
+type WasmImportDeclaration struct {
+	ModuleName   string
+	FunctionName string
+	ParamTypes   []types.WasmType
+	ResultTypes  []types.WasmType
+}
+
 func (m *WasmFunctionModule) GetIndex() int {
 	return m.codeIndex
 }
 
 func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
-	// reserve a slot for the function in the symbol table
-	symbolTable.functions = append(symbolTable.functions, WasmFunctionModule{})
+	lenImports := 0
+	if symbolTable.imports != nil {
+		lenImports = len(*symbolTable.imports)
+	}
+
+	index := len(symbolTable.functions) + lenImports
 
 	return &WasmFunctionBuilder{
 		paramTypes:   []types.WasmType{},
@@ -44,7 +55,7 @@ func NewWasmFunctionBuilder(symbolTable *wasmSymbolTable) *WasmFunctionBuilder {
 		locals:       [][]byte{},
 		instructions: []byte{},
 		symbolTable:  symbolTable,
-		codeIndex:    len(symbolTable.functions) - 1,
+		codeIndex:    index,
 	}
 }
 
@@ -195,6 +206,21 @@ func (b *WasmFunctionBuilder) AddInstrCall(f *WasmFunctionModule) *WasmFunctionB
 	return b
 }
 
+func (b *WasmFunctionBuilder) AddInstrCallImport(f *WasmImportDeclaration) *WasmFunctionBuilder {
+	b.instructions = append(b.instructions, instructions.CallFunc)
+
+	index := -1
+	for i, imp := range *b.symbolTable.imports {
+		if imp.ModuleName == f.ModuleName && imp.FunctionName == f.FunctionName {
+			index = i
+			break
+		}
+	}
+
+	b.instructions = append(b.instructions, leb128EncodeU(uint64(index))...)
+	return b
+}
+
 func (b *WasmFunctionBuilder) AddInstrCallSelf() *WasmFunctionBuilder {
 	b.instructions = append(b.instructions, instructions.CallFunc)
 
@@ -254,10 +280,11 @@ func (b *WasmFunctionBuilder) Build() WasmFunctionModule {
 		funcType:    funcType,
 	}
 
-	// Update the function in the symbol table
-	b.symbolTable.functions[m.codeIndex] = m
-	// Update the code index in the function
-	m.codeIndex = len(b.symbolTable.functions) - 1
+	// Use the precomputed absolute code index (includes imports) that was
+	// set in NewWasmFunctionBuilder. This ensures calls encoded earlier
+	// (AddInstrCall) point to the correct function index.
+	m.codeIndex = b.codeIndex
+	b.symbolTable.functions = append(b.symbolTable.functions, m)
 
 	return m
 }
@@ -267,33 +294,70 @@ func (b *WasmFunctionBuilder) buildFunctionCode() []byte {
 }
 
 type WasmModuleBuilder struct {
-	metaLanuages         []wasmMetadata
+	metaLanguages        []wasmMetadata
 	metaTools            []wasmMetadata
 	metaSdks             []wasmMetadata
 	sectionFunctionTypes []wasmSectionFunctionType
 	sectionFunction      []int // FIXME: Should be uint32
 	sectionExports       []wasmSectionExportedModule
+	sectionImports       []wasmSectionImportedModule
 	sectionCode          [][]byte
 	exportNames          []string
+	imports              *[]WasmImportDeclaration
+	symbolTable          *wasmSymbolTable
+	functionsMap         map[int]*WasmFunctionModule
 }
 
 func NewWasmModuleBuilder(wasmSymbolTable *wasmSymbolTable) *WasmModuleBuilder {
+	importData := []WasmImportDeclaration{}
+	allImports := []wasmSectionImportedModule{}
+
+	typesSlice := []wasmSectionFunctionType{}
+	if wasmSymbolTable != nil {
+		typesSlice = append(typesSlice, wasmSymbolTable.functionTypes...)
+	}
+
+	if wasmSymbolTable != nil && wasmSymbolTable.imports != nil {
+		importData = *wasmSymbolTable.imports
+		for _, imp := range importData {
+			sig := funcType(imp.ParamTypes, imp.ResultTypes)
+
+			typeIndex := -1
+			for i, existing := range typesSlice {
+				if bytes.Equal(existing, sig) {
+					typeIndex = i
+					break
+				}
+			}
+			if typeIndex == -1 {
+				typeIndex = len(typesSlice)
+				typesSlice = append(typesSlice, sig)
+			}
+
+			allImports = append(allImports, imports(imp.ModuleName, imp.FunctionName, importdesc.function(uint32(typeIndex))))
+		}
+	}
+
 	return &WasmModuleBuilder{
-		metaLanuages:         []wasmMetadata{},
+		metaLanguages:        []wasmMetadata{},
 		metaTools:            []wasmMetadata{},
 		metaSdks:             []wasmMetadata{},
-		sectionFunctionTypes: wasmSymbolTable.functionTypes,
+		sectionFunctionTypes: typesSlice,
 		sectionExports:       []wasmSectionExportedModule{},
+		sectionImports:       allImports,
 		sectionCode:          [][]byte{},
 		sectionFunction:      []int{},
 		exportNames:          []string{},
+		imports:              &importData,
+		symbolTable:          wasmSymbolTable,
+		functionsMap:         map[int]*WasmFunctionModule{},
 	}
 }
 
 // Adds a source programming language to the module as metadata. This is an optional field. Examples of languages
 // include "C" or "Rust". Multiple languages can be added to the module.
 func (b *WasmModuleBuilder) AddMetaLanguage(name, version string) *WasmModuleBuilder {
-	b.metaLanuages = append(b.metaLanuages, wasmMetadata{
+	b.metaLanguages = append(b.metaLanguages, wasmMetadata{
 		Name:    name,
 		Version: version,
 	})
@@ -326,9 +390,7 @@ func (b *WasmModuleBuilder) AddMetaSdk(name, version string) *WasmModuleBuilder 
 
 // Register a function in the module. The function must be built using the WasmFunctionBuilder.
 func (b *WasmModuleBuilder) AddFunction(function *WasmFunctionModule) *WasmModuleBuilder {
-	b.sectionFunction = append(b.sectionFunction, function.typeIndex)
-	b.sectionCode = append(b.sectionCode, function.sectionCode)
-
+	b.functionsMap[function.codeIndex] = function
 	return b
 }
 
@@ -357,13 +419,33 @@ func (b *WasmModuleBuilder) Export(name string, exportType types.WasmExportType,
 		return b
 	}
 
-	b.sectionExports = append(b.sectionExports, export(name, wasmExportDescription{
-		Type:  exportType,
-		Index: item.GetIndex(),
-	}))
+	// item.GetIndex() returns the absolute function index (includes imports).
+	// export(...) expects a function index relative to the functions section,
+	// because it will add numImportDeclarations back in. Convert to relative.
+	absIndex := item.GetIndex()
+	relIndex := absIndex
+	if b.lenImports() > 0 {
+		relIndex = absIndex - b.lenImports()
+	}
+
+	b.sectionExports = append(b.sectionExports, export(
+		name,
+		wasmExportDescription{
+			Type:  exportType,
+			Index: relIndex,
+		},
+		b.lenImports(),
+	))
 	b.exportNames = append(b.exportNames, name)
 
 	return b
+}
+
+func (b *WasmModuleBuilder) lenImports() int {
+	if b.imports == nil {
+		return 0
+	}
+	return len(*b.imports)
 }
 
 // Build the WASM bytecode. Returns the WASM bytecode as a byte slice.
@@ -371,20 +453,37 @@ func (b *WasmModuleBuilder) Build() []byte {
 	sections := []wasmSection{}
 
 	sections = append(sections, sectionType(b.sectionFunctionTypes...))
-	funcIndices := make([]uint64, len(b.sectionFunction))
-	for i, idx := range b.sectionFunction {
-		funcIndices[i] = uint64(idx)
+	sections = append(sections, sectionImports(b.sectionImports...))
+
+	funcIndices := make([]uint64, 0)
+	codeSections := make([][]byte, 0)
+
+	for _, idx := range b.sectionFunction {
+		funcIndices = append(funcIndices, uint64(idx))
 	}
+	if len(b.sectionCode) > 0 {
+		codeSections = append(codeSections, b.sectionCode...)
+	}
+
+	if b.symbolTable != nil {
+		for _, f := range b.symbolTable.functions {
+			if _, ok := b.functionsMap[f.codeIndex]; ok {
+				funcIndices = append(funcIndices, uint64(f.typeIndex))
+				codeSections = append(codeSections, f.sectionCode)
+			}
+		}
+	}
+
 	sections = append(sections, sectionFunc(funcIndices...))
 
 	if len(b.sectionExports) > 0 {
 		sections = append(sections, sectionExport(b.sectionExports...))
 	}
 
-	sections = append(sections, sectionCode(b.sectionCode...))
+	sections = append(sections, sectionCode(codeSections...))
 
-	if len(b.metaLanuages) > 0 || len(b.metaTools) > 0 || len(b.metaSdks) > 0 {
-		sections = append(sections, sectionProducers(b.metaLanuages, b.metaTools, b.metaSdks))
+	if len(b.metaLanguages) > 0 || len(b.metaTools) > 0 || len(b.metaSdks) > 0 {
+		sections = append(sections, sectionProducers(b.metaLanguages, b.metaTools, b.metaSdks))
 	}
 
 	return module(sections...)

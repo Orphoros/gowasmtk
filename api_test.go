@@ -26,7 +26,7 @@ func TestModule(t *testing.T) {
 		exportedMainFunc := export("main", wasmExportDescription{
 			Type:  types.ExportFunctionType,
 			Index: 0,
-		})
+		}, 0)
 
 		exportSection := sectionExport(exportedMainFunc)
 
@@ -53,7 +53,7 @@ func TestModule(t *testing.T) {
 	})
 
 	t.Run("should build a wasm module with function call arithmetic", func(t *testing.T) {
-		wasmSymbolTable := NewSymbolTable()
+		wasmSymbolTable := NewSymbolTable(nil)
 
 		adder := NewWasmFunctionBuilder(wasmSymbolTable).
 			AddParam(types.I32).
@@ -93,7 +93,7 @@ func TestModule(t *testing.T) {
 	})
 
 	t.Run("should build a wasm module with conditional", func(t *testing.T) {
-		wasmSymbolTable := NewSymbolTable()
+		wasmSymbolTable := NewSymbolTable(nil)
 		main := NewWasmFunctionBuilder(wasmSymbolTable).
 			// get a i32 from parameter, if it is 0, return 0, else return 1
 			AddParam(types.I32).
@@ -123,7 +123,7 @@ func TestModule(t *testing.T) {
 	})
 
 	t.Run("should build a wasm module with loop", func(t *testing.T) {
-		wasmSymbolTable := NewSymbolTable()
+		wasmSymbolTable := NewSymbolTable(nil)
 		// get a i32 from parameter, calculate fibonacci
 		fib := NewWasmFunctionBuilder(wasmSymbolTable).
 			AddParam(types.I32).
@@ -161,6 +161,55 @@ func TestModule(t *testing.T) {
 		mod := NewWasmModuleBuilder(wasmSymbolTable).
 			AddFunction(&main).
 			AddFunction(&fib).
+			Export("main", types.ExportFunctionType, &main).
+			AddMetaSdk("Orp", "0.0.1").
+			AddMetaLanguage("Shark", "0.0.1").
+			AddMetaTool("GoWasmTK", "0.0.1")
+
+		err := mod.BuildWasmFile("mod.wasm")
+		if err != nil {
+			log.Fatal("error: %w\n", err)
+			return
+		}
+	})
+
+	t.Run("should build a wasm module with imports", func(t *testing.T) {
+		imports := []WasmImportDeclaration{
+			{
+				ModuleName:   "basicMath",
+				FunctionName: "addOne",
+				ParamTypes:   []types.WasmType{types.I32},
+				ResultTypes:  []types.WasmType{types.I32},
+			},
+		}
+		wasmSymbolTable := NewSymbolTable(&imports)
+		adder := NewWasmFunctionBuilder(wasmSymbolTable).
+			AddParam(types.I32).
+			AddParam(types.I32).
+			AddReturn(types.I32).
+			AddInstrGetLocal(0).
+			AddInstrGetLocal(1).
+			AddInstrAddI32().
+			AddInstrEnd().
+			Build()
+
+		main := NewWasmFunctionBuilder(wasmSymbolTable).
+			// get a i32 from parameter, call adder with the constant of 10, then call imported addOne, return the result
+			AddParam(types.I32).
+			AddReturn(types.I32).
+			AddLocal(1, types.I32).
+			AddInstrConstI32(10).
+			AddInstrSetLocal(1).
+			AddInstrGetLocal(0).
+			AddInstrGetLocal(1).
+			AddInstrCall(&adder).
+			AddInstrCallImport(&imports[0]). // call the first import
+			AddInstrEnd().
+			Build()
+
+		mod := NewWasmModuleBuilder(wasmSymbolTable).
+			AddFunction(&adder).
+			AddFunction(&main).
 			Export("main", types.ExportFunctionType, &main).
 			AddMetaSdk("Orp", "0.0.1").
 			AddMetaLanguage("Shark", "0.0.1").
