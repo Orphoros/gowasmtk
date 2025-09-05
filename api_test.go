@@ -6,7 +6,16 @@ import (
 
 	"github.com/Orphoros/gowasmtk/instructions"
 	"github.com/Orphoros/gowasmtk/types"
+
+	wasmer "github.com/wasmerio/wasmer-go/wasmer"
 )
+
+type apiTestCase struct {
+	input      *WasmModuleBuilder
+	nameOfMain string
+	args       []interface{}
+	expected   interface{}
+}
 
 func TestModule(t *testing.T) {
 	t.Run("should build a void wasm module", func(t *testing.T) {
@@ -85,11 +94,13 @@ func TestModule(t *testing.T) {
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")
 
-		err := mod.BuildWasmFile("mod.wasm")
-		if err != nil {
-			log.Fatal("error: %w\n", err)
-			return
-		}
+		runModValueTest(t, apiTestCase{
+			input:      mod,
+			nameOfMain: "main",
+			args:       []interface{}{45},
+			expected:   int32(55), // 45 + 10
+		})
+
 	})
 
 	t.Run("should build a wasm module with conditional", func(t *testing.T) {
@@ -115,11 +126,19 @@ func TestModule(t *testing.T) {
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")
 
-		err := mod.BuildWasmFile("mod.wasm")
-		if err != nil {
-			log.Fatal("error: %w\n", err)
-			return
-		}
+		runModValueTest(t, apiTestCase{
+			input:      mod,
+			nameOfMain: "main",
+			args:       []interface{}{0},
+			expected:   int32(0),
+		})
+
+		runModValueTest(t, apiTestCase{
+			input:      mod,
+			nameOfMain: "main",
+			args:       []interface{}{42},
+			expected:   int32(1),
+		})
 	})
 
 	t.Run("should build a wasm module with loop", func(t *testing.T) {
@@ -166,11 +185,19 @@ func TestModule(t *testing.T) {
 			AddMetaLanguage("Shark", "0.0.1").
 			AddMetaTool("GoWasmTK", "0.0.1")
 
-		err := mod.BuildWasmFile("mod.wasm")
-		if err != nil {
-			log.Fatal("error: %w\n", err)
-			return
-		}
+		runModValueTest(t, apiTestCase{
+			input:      mod,
+			nameOfMain: "main",
+			args:       []interface{}{10},
+			expected:   int32(55), // fib of 10 is 55
+		})
+
+		runModValueTest(t, apiTestCase{
+			input:      mod,
+			nameOfMain: "main",
+			args:       []interface{}{20},
+			expected:   int32(6765), // fib of 20 is 6765
+		})
 	})
 
 	t.Run("should build a wasm module with imports", func(t *testing.T) {
@@ -221,4 +248,44 @@ func TestModule(t *testing.T) {
 			return
 		}
 	})
+}
+
+func runModValueTest(t *testing.T, test apiTestCase) {
+	t.Helper()
+	engine := wasmer.NewEngine()
+	store := wasmer.NewStore(engine)
+
+	module, err := wasmer.NewModule(store, test.input.Build())
+
+	if err != nil {
+		log.Fatal("module compilation error: %w\n", err)
+		return
+	}
+
+	importObject := wasmer.NewImportObject()
+	instance, err := wasmer.NewInstance(module, importObject)
+
+	if err != nil {
+		log.Fatal("instance error: %w\n", err)
+		return
+	}
+
+	main, err := instance.Exports.GetFunction(test.nameOfMain)
+
+	if err != nil {
+		log.Fatal("function retrieval error: %w\n", err)
+		return
+	}
+
+	result, err := main(test.args...)
+
+	if err != nil {
+		log.Fatal("function call error: %w\n", err)
+		return
+	}
+
+	if result != test.expected {
+		t.Fatalf("expected %v, got %v", test.expected, result)
+	}
+
 }
